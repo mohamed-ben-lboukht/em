@@ -27,48 +27,74 @@ except Exception as e:
 EMOTIONS = ['neutral', 'happy', 'sad', 'angry', 'fearful', 'disgusted', 'surprised']
 
 def compute_histogram_features(keystrokes, bins=10, bins_edges=[0, 0.1, 0.5, 1, 2, 5, 10, 50, 100, 200, 300]):
-    """Compute histogram features from keystroke timings"""
-    timings = np.array(keystrokes, dtype=float)
-    if (len(timings) == 0 or
-        np.any(np.isnan(timings)) or
-        np.any(np.isinf(timings)) or
-        np.nanmax(timings) == np.nanmin(timings)):
+    """Optimized histogram computation with better error handling"""
+    try:
+        timings = np.array(keystrokes, dtype=float)
+        
+        # Enhanced validation
+        if (len(timings) == 0 or
+            np.any(np.isnan(timings)) or
+            np.any(np.isinf(timings)) or
+            np.any(timings < 0) or
+            np.any(timings > 5000)):
+            return np.zeros(bins)
+            
+        # Remove outliers
+        q1, q3 = np.percentile(timings, [25, 75])
+        iqr = q3 - q1
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+        timings = timings[(timings >= lower_bound) & (timings <= upper_bound)]
+        
+        if len(timings) == 0:
+            return np.zeros(bins)
+            
+        if bins_edges is None:
+            min_range = max(0, np.min(timings))
+            max_range = min(300, np.max(timings))
+            bins_edges = np.linspace(min_range, max_range, bins + 1)
+        else:
+            bins = len(bins_edges) - 1
+            
+        hist, _ = np.histogram(timings, bins=bins_edges, density=False)
+        hist_sum = hist.sum()
+        
+        if hist_sum == 0:
+            return np.zeros(bins)
+            
+        return hist / hist_sum
+    except Exception as e:
+        logger.error(f"Error in histogram computation: {e}")
         return np.zeros(bins)
-    if bins_edges is None:
-        min_range = max(0, np.nanmin(timings))
-        max_range = min(300, np.nanmax(timings))
-        bins_edges = np.linspace(min_range, max_range, bins + 1)
-    else:
-        bins = len(bins_edges) - 1
-    hist, _ = np.histogram(timings, bins=bins_edges, density=False)
-    hist_sum = hist.sum()
-    if hist_sum == 0:
-        return np.zeros(bins)
-    return hist / hist_sum
 
-class KeystrokeCollector:
-    def __init__(self, window_size=50):
+class SimpleKeystrokeCollector:
+    def __init__(self, window_size=20):
         self.window_size = window_size
         self.keystroke_buffer = deque(maxlen=window_size)
         self.last_prediction = None
+        self.min_data_points = 3
         
     def add_keystroke_data(self, timings):
         """Add keystroke timing data to the buffer"""
-        # Filter out invalid timings and add valid ones
-        valid_timings = [t for t in timings if isinstance(t, (int, float)) and t >= 0 and t <= 1000]
-        self.keystroke_buffer.extend(valid_timings)
+        if not timings:
+            return
+            
+        # Filter valid timings
+        valid_timings = []
+        for t in timings:
+            if isinstance(t, (int, float)) and 0 < t < 2000:
+                valid_timings.append(t)
+        
+        if valid_timings:
+            self.keystroke_buffer.extend(valid_timings)
         
     def get_features(self):
-        """Extract histogram features from keystroke buffer for prediction"""
-        if len(self.keystroke_buffer) < 5:  # Need minimum data for meaningful histogram
+        """Extract histogram features from keystroke buffer"""
+        if len(self.keystroke_buffer) < self.min_data_points:
             return np.zeros(10).reshape(1, -1)
         
-        # Convert buffer to list for histogram computation
         keystroke_list = list(self.keystroke_buffer)
-        
-        # Compute histogram features using the provided function
         features = compute_histogram_features(keystroke_list)
-        
         return features.reshape(1, -1)
     
     def predict_emotion(self):
@@ -82,40 +108,78 @@ class KeystrokeCollector:
             # Make prediction
             prediction = model.predict(features)[0]
             
-            # Handle different prediction formats
-            if isinstance(prediction, (list, np.ndarray)):
-                if len(prediction) == len(EMOTIONS):
-                    emotion_scores = np.array(prediction)
-                else:
-                    # If prediction is a single value or different length, create distribution
-                    emotion_scores = np.random.dirichlet(np.ones(len(EMOTIONS)))
-            else:
-                # Single value prediction - create a distribution with this as dominant
-                emotion_scores = np.zeros(len(EMOTIONS))
-                # Map single value to emotion distribution based on range
-                if 0 <= prediction <= 1:
-                    emotion_scores[EMOTIONS.index('neutral')] = 1 - prediction
-                    emotion_scores[EMOTIONS.index('happy')] = prediction
-                else:
-                    emotion_scores = np.random.dirichlet(np.ones(len(EMOTIONS)))
-            
-            # Ensure values are between 0 and 1 and sum to 1
-            emotion_scores = np.clip(emotion_scores, 0, 1)
-            if emotion_scores.sum() > 0:
-                emotion_scores = emotion_scores / emotion_scores.sum()
-            
-            # Create emotion dictionary
-            emotions = {emotion: float(score) for emotion, score in zip(EMOTIONS, emotion_scores)}
-            
+            # Process prediction
+            emotions = self.process_prediction(prediction)
             self.last_prediction = emotions
+            
             return emotions
             
         except Exception as e:
             logger.error(f"Prediction error: {e}")
             return {'error': str(e)}
+    
+    def process_prediction(self, prediction):
+        """Process prediction into emotion distribution"""
+        try:
+            # Handle different prediction formats
+            if isinstance(prediction, (list, np.ndarray)):
+                if len(prediction) == len(EMOTIONS):
+                    emotion_scores = np.array(prediction)
+                else:
+                    emotion_scores = self.map_single_to_distribution(prediction[0] if len(prediction) > 0 else 0)
+            else:
+                emotion_scores = self.map_single_to_distribution(prediction)
+            
+            # Ensure valid probability distribution
+            emotion_scores = np.clip(emotion_scores, 0, 1)
+            if emotion_scores.sum() > 0:
+                emotion_scores = emotion_scores / emotion_scores.sum()
+            else:
+                emotion_scores = np.zeros(len(EMOTIONS))
+                emotion_scores[0] = 1.0  # Default to neutral
+            
+            # Create emotion dictionary
+            emotions = {emotion: float(score) for emotion, score in zip(EMOTIONS, emotion_scores)}
+            return emotions
+            
+        except Exception as e:
+            logger.error(f"Error processing prediction: {e}")
+            return {emotion: 1.0 if emotion == 'neutral' else 0.0 for emotion in EMOTIONS}
+    
+    def map_single_to_distribution(self, value):
+        """Map single prediction value to emotion distribution"""
+        try:
+            # Normalize value to 0-1 range
+            normalized_value = max(0, min(1, (value + 1) / 2)) if isinstance(value, (int, float)) else 0.5
+            
+            # Create distribution based on value
+            emotion_scores = np.zeros(len(EMOTIONS))
+            
+            if normalized_value < 0.2:
+                emotion_scores[EMOTIONS.index('sad')] = 0.7
+                emotion_scores[EMOTIONS.index('neutral')] = 0.3
+            elif normalized_value < 0.4:
+                emotion_scores[EMOTIONS.index('fearful')] = 0.6
+                emotion_scores[EMOTIONS.index('neutral')] = 0.4
+            elif normalized_value < 0.6:
+                emotion_scores[EMOTIONS.index('neutral')] = 1.0
+            elif normalized_value < 0.8:
+                emotion_scores[EMOTIONS.index('happy')] = 0.7
+                emotion_scores[EMOTIONS.index('neutral')] = 0.3
+            else:
+                emotion_scores[EMOTIONS.index('surprised')] = 0.6
+                emotion_scores[EMOTIONS.index('happy')] = 0.4
+            
+            return emotion_scores
+            
+        except Exception as e:
+            logger.error(f"Error mapping single value: {e}")
+            emotion_scores = np.zeros(len(EMOTIONS))
+            emotion_scores[0] = 1.0  # Default to neutral
+            return emotion_scores
 
 # Global keystroke collector
-keystroke_collector = KeystrokeCollector()
+keystroke_collector = SimpleKeystrokeCollector()
 
 @app.route('/')
 def index():
@@ -143,11 +207,8 @@ def handle_keystroke_data(data):
     """Handle incoming keystroke timing data"""
     try:
         timings = data.get('timings', [])
-        is_deletion = data.get('is_deletion', False)
         
-        # Skip processing if it's a deletion
-        if is_deletion:
-            logger.info("Skipping deletion keystroke")
+        if not timings:
             return
         
         # Add to collector
@@ -156,12 +217,13 @@ def handle_keystroke_data(data):
         # Make prediction
         emotions = keystroke_collector.predict_emotion()
         
-        # Emit prediction to client
-        emit('emotion_prediction', {
-            'emotions': emotions,
-            'timestamp': time.time(),
-            'buffer_size': len(keystroke_collector.keystroke_buffer)
-        })
+        if 'error' not in emotions:
+            # Emit prediction to client
+            emit('emotion_prediction', {
+                'emotions': emotions,
+                'timestamp': time.time(),
+                'buffer_size': len(keystroke_collector.keystroke_buffer)
+            })
         
     except Exception as e:
         logger.error(f"Error processing keystroke data: {e}")

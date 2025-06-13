@@ -1,8 +1,12 @@
-// Emotion Detection App
-class EmotionDetector {
+// My Tiger - Simple Emotion Detection
+class MyTigerApp {
     constructor() {
+        // Core properties
         this.socket = io();
         this.keystrokeBuffer = [];
+        this.lastKeystrokeTime = null;
+        
+        // Emotion configuration
         this.emotions = ['neutral', 'happy', 'sad', 'angry', 'fearful', 'disgusted', 'surprised'];
         this.emotionIcons = {
             'neutral': 'far fa-face-meh',
@@ -14,124 +18,210 @@ class EmotionDetector {
             'surprised': 'far fa-face-surprise'
         };
         
-        this.setupEventListeners();
-        this.initializeSocketEvents();
+        this.emotionDescriptions = {
+            'neutral': 'A balanced emotional state',
+            'happy': 'Positive and joyful feelings',
+            'sad': 'Melancholy or downcast emotions',
+            'angry': 'Frustration or irritation detected',
+            'fearful': 'Anxiety or concern present',
+            'disgusted': 'Discomfort or aversion felt',
+            'surprised': 'Unexpected or startled reactions'
+        };
+        
+        // Initialize the application
+        this.init();
     }
 
-    setupEventListeners() {
+    async init() {
+        // Show loading screen
+        this.showLoading();
+        
+        // Initialize components
+        await this.setupEventListeners();
+        await this.initializeSocketEvents();
+        
+        // Hide loading screen after setup
+        setTimeout(() => {
+            this.hideLoading();
+        }, 1500);
+    }
+
+    showLoading() {
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'flex';
+        }
+    }
+
+    hideLoading() {
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        if (loadingOverlay) {
+            loadingOverlay.classList.add('hidden');
+            setTimeout(() => {
+                loadingOverlay.style.display = 'none';
+            }, 500);
+        }
+    }
+
+    async setupEventListeners() {
         const typingArea = document.getElementById('typingArea');
         
-        // Keystroke event listeners
+        // Keystroke tracking
         typingArea.addEventListener('keydown', (e) => this.handleKeyDown(e));
         typingArea.addEventListener('keyup', (e) => this.handleKeyUp(e));
-        typingArea.addEventListener('input', () => this.updateStats());
 
-        // Button event listeners
-        document.getElementById('clearTextBtn').addEventListener('click', () => this.clearText());
-        document.getElementById('resetBufferBtn').addEventListener('click', () => this.resetBuffer());
-        
-        // Info panel toggle
-        document.getElementById('infoToggle').addEventListener('click', () => this.toggleInfoPanel());
+        // Button events
+        document.getElementById('clearBtn')?.addEventListener('click', () => this.clearText());
+        document.getElementById('resetBtn')?.addEventListener('click', () => this.resetAnalysis());
+        document.getElementById('helpBtn')?.addEventListener('click', () => this.toggleHelp());
+        document.getElementById('closeHelp')?.addEventListener('click', () => this.closeHelp());
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
     }
 
     handleKeyDown(event) {
-        // Skip special keys (delete, backspace, etc.)
-        if (this.shouldSkipKey(event.key)) {
-            return;
-        }
+        if (this.shouldSkipKey(event.key)) return;
 
-        const timestamp = performance.now();
+        const now = performance.now();
+        
+        // Calculate timing features
+        const timingSinceLastKey = this.lastKeystrokeTime ? now - this.lastKeystrokeTime : 0;
+        
         this.keystrokeBuffer.push({
             type: 'keydown',
-            key: event.key,
-            timestamp: timestamp,
-            keyCode: event.keyCode
+            timestamp: now,
+            timingSinceLastKey: timingSinceLastKey
         });
 
-        this.updateBufferDisplay();
-        this.processKeystrokeData();
+        this.lastKeystrokeTime = now;
+        
+        // Process data for real-time feel
+        if (this.keystrokeBuffer.length >= 3) {
+            this.processKeystrokeData();
+        }
     }
 
     handleKeyUp(event) {
-        // Skip special keys
-        if (this.shouldSkipKey(event.key)) {
-            return;
-        }
+        if (this.shouldSkipKey(event.key)) return;
 
-        const timestamp = performance.now();
+        const now = performance.now();
+        const timingSinceLastKey = this.lastKeystrokeTime ? now - this.lastKeystrokeTime : 0;
+        
         this.keystrokeBuffer.push({
             type: 'keyup',
-            key: event.key,
-            timestamp: timestamp,
-            keyCode: event.keyCode
+            timestamp: now,
+            timingSinceLastKey: timingSinceLastKey
         });
 
-        this.updateBufferDisplay();
-        this.processKeystrokeData();
+        this.lastKeystrokeTime = now;
+        
+        // Keep buffer manageable
+        if (this.keystrokeBuffer.length > 50) {
+            this.keystrokeBuffer = this.keystrokeBuffer.slice(-30);
+        }
     }
 
     shouldSkipKey(key) {
-        // Skip deletion keys and special keys
-        const skipKeys = ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'Shift', 'Control', 'Alt', 'Meta'];
+        const skipKeys = ['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab', 'Escape'];
         return skipKeys.includes(key) || key.startsWith('Arrow') || key.startsWith('F');
     }
 
     processKeystrokeData() {
-        // Send keystroke data when we have enough samples
-        if (this.keystrokeBuffer.length >= 10) {
+        // Calculate timing features
+        const timings = this.calculateTimingFeatures();
+        
+        if (timings.length > 0) {
+            // Send to server
             this.socket.emit('keystroke_data', {
-                keystrokes: [...this.keystrokeBuffer],
+                timings: timings,
                 timestamp: Date.now()
             });
-            
-            // Keep only recent keystrokes to avoid memory issues
-            if (this.keystrokeBuffer.length > 100) {
-                this.keystrokeBuffer = this.keystrokeBuffer.slice(-50);
-            }
         }
     }
 
-    updateStats() {
-        const typingArea = document.getElementById('typingArea');
-        const text = typingArea.value;
+    calculateTimingFeatures() {
+        const timings = [];
         
-        document.getElementById('wordCount').textContent = text.trim() ? text.trim().split(/\s+/).length : 0;
-        document.getElementById('charCount').textContent = text.length;
-    }
-
-    updateBufferDisplay() {
-        document.getElementById('bufferSize').textContent = this.keystrokeBuffer.length;
+        for (let i = 1; i < this.keystrokeBuffer.length; i++) {
+            const current = this.keystrokeBuffer[i];
+            const previous = this.keystrokeBuffer[i - 1];
+            
+            if (current.type === 'keydown' && previous.type === 'keydown') {
+                const dwellTime = current.timestamp - previous.timestamp;
+                if (dwellTime > 0 && dwellTime < 2000) { // Filter reasonable timings
+                    timings.push(dwellTime);
+                }
+            }
+        }
+        
+        return timings;
     }
 
     clearText() {
         document.getElementById('typingArea').value = '';
-        this.updateStats();
+        this.keystrokeBuffer = [];
+        this.lastKeystrokeTime = null;
     }
 
-    resetBuffer() {
+    resetAnalysis() {
         this.keystrokeBuffer = [];
-        this.updateBufferDisplay();
         
-        // Reset emotion display
+        // Reset emotion display with animation
         this.emotions.forEach(emotion => {
-            document.querySelector(`.bar-fill[data-emotion="${emotion}"]`).style.width = '0%';
-            document.querySelector(`.emotion-value[data-emotion="${emotion}"]`).textContent = '0%';
+            const barFill = document.querySelector(`.bar-fill-modern[data-emotion="${emotion}"]`);
+            const barValue = document.querySelector(`.bar-value[data-emotion="${emotion}"]`);
+            
+            if (barFill && barValue) {
+                barFill.style.width = '0%';
+                barValue.textContent = '0%';
+            }
         });
         
         // Reset dominant emotion
-        document.getElementById('dominantEmotionName').textContent = 'Neutral';
-        document.getElementById('dominantEmotionScore').textContent = '0%';
-        document.getElementById('dominantEmotionIcon').innerHTML = '<i class="far fa-face-meh"></i>';
+        this.updateDominantEmotion('neutral', 0);
     }
 
-    toggleInfoPanel() {
-        const panel = document.getElementById('infoPanel');
-        panel.classList.toggle('open');
+    toggleHelp() {
+        const helpPanel = document.getElementById('helpPanel');
+        if (helpPanel) {
+            helpPanel.classList.toggle('open');
+        }
+    }
+
+    closeHelp() {
+        const helpPanel = document.getElementById('helpPanel');
+        if (helpPanel) {
+            helpPanel.classList.remove('open');
+        }
+    }
+
+    handleKeyboardShortcuts(event) {
+        if (event.ctrlKey || event.metaKey) {
+            switch (event.key) {
+                case 'l':
+                    event.preventDefault();
+                    this.clearText();
+                    break;
+                case 'r':
+                    event.preventDefault();
+                    this.resetAnalysis();
+                    break;
+                case '/':
+                    event.preventDefault();
+                    this.toggleHelp();
+                    break;
+            }
+        }
+        
+        if (event.key === 'Escape') {
+            this.closeHelp();
+        }
     }
 
     initializeSocketEvents() {
         this.socket.on('connect', () => {
-            console.log('Connected to server');
+            console.log('Connected to My Tiger server');
         });
 
         this.socket.on('disconnect', () => {
@@ -148,23 +238,7 @@ class EmotionDetector {
     }
 
     updateEmotionDisplay(emotions) {
-        if (!emotions || typeof emotions !== 'object') {
-            return;
-        }
-
-        // Update emotion bars
-        this.emotions.forEach(emotion => {
-            const value = emotions[emotion] || 0;
-            const percentage = Math.round(value * 100);
-            
-            const barFill = document.querySelector(`.bar-fill[data-emotion="${emotion}"]`);
-            const emotionValue = document.querySelector(`.emotion-value[data-emotion="${emotion}"]`);
-            
-            if (barFill && emotionValue) {
-                barFill.style.width = `${percentage}%`;
-                emotionValue.textContent = `${percentage}%`;
-            }
-        });
+        if (!emotions || typeof emotions !== 'object') return;
 
         // Find dominant emotion
         let dominantEmotion = 'neutral';
@@ -176,19 +250,64 @@ class EmotionDetector {
                 dominantEmotion = emotion;
             }
         });
-
-        // Update dominant emotion display
-        const percentage = Math.round(maxValue * 100);
-        document.getElementById('dominantEmotionName').textContent = 
-            dominantEmotion.charAt(0).toUpperCase() + dominantEmotion.slice(1);
-        document.getElementById('dominantEmotionScore').textContent = `${percentage}%`;
         
-        const iconClass = this.emotionIcons[dominantEmotion] || 'far fa-face-meh';
-        document.getElementById('dominantEmotionIcon').innerHTML = `<i class="${iconClass}"></i>`;
+        // Update emotion bars with smooth animations
+        this.emotions.forEach(emotion => {
+            const value = emotions[emotion] || 0;
+            const percentage = Math.round(value * 100);
+            
+            const barFill = document.querySelector(`.bar-fill-modern[data-emotion="${emotion}"]`);
+            const barValue = document.querySelector(`.bar-value[data-emotion="${emotion}"]`);
+            const barGlow = document.querySelector(`.bar-glow[data-emotion="${emotion}"]`);
+            
+            if (barFill && barValue) {
+                // Animate bar fill
+                setTimeout(() => {
+                    barFill.style.width = `${percentage}%`;
+                    barValue.textContent = `${percentage}%`;
+                    
+                    // Trigger glow effect for active emotions
+                    if (percentage > 10 && barGlow) {
+                        barGlow.style.left = '100%';
+                        setTimeout(() => {
+                            barGlow.style.left = '-100%';
+                        }, 800);
+                    }
+                }, Math.random() * 100); // Stagger animations
+            }
+        });
+
+        // Update dominant emotion
+        this.updateDominantEmotion(dominantEmotion, maxValue);
+    }
+
+    updateDominantEmotion(emotion, confidence) {
+        const emotionName = document.getElementById('dominantEmotion');
+        const emotionDescription = document.getElementById('emotionDescription');
+        const emotionIcon = document.getElementById('dominantIcon');
+        const emotionCircle = document.getElementById('emotionCircle');
+
+        if (emotionName) {
+            emotionName.textContent = emotion.charAt(0).toUpperCase() + emotion.slice(1);
+        }
+
+        if (emotionDescription) {
+            emotionDescription.textContent = this.emotionDescriptions[emotion] || 'Analyzing your emotional state...';
+        }
+
+        if (emotionIcon) {
+            const iconClass = this.emotionIcons[emotion] || 'far fa-face-meh';
+            emotionIcon.innerHTML = `<i class="${iconClass}"></i>`;
+        }
+
+        // Update emotion circle styling
+        if (emotionCircle) {
+            emotionCircle.setAttribute('data-emotion', emotion);
+        }
     }
 }
 
-// Initialize the app when DOM is loaded
+// Initialize the application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    new EmotionDetector();
+    window.myTiger = new MyTigerApp();
 }); 

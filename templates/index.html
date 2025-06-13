@@ -4,216 +4,245 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Tiger - Emotion Detection</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <!-- Floating particles for visual effect -->
-    <div class="floating-particles" id="particles"></div>
+    <!-- Neural Network Background Animation -->
+    <div class="neural-bg" id="neuralBg"></div>
     
-    <div class="container">
-        <!-- Header -->
-        <header class="header">
-            <div class="logo">
-                <img src="{{ url_for('static', filename='images/mytiger.png') }}" alt="My Tiger Logo" class="logo-image">
-                <div class="logo-text">
-                    <h1>My Tiger</h1>
-                    <span class="subtitle">Emotion Detection from Keystroke Dynamics</span>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="tiger-loader">
+                <div class="tiger-face">🐅</div>
+                <div class="loading-text">Initializing My Tiger...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <!-- Simple Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <div class="logo-container">
+                        <img src="{{ url_for('static', filename='images/mytiger.png') }}" alt="My Tiger" class="logo-img">
+                        <div class="logo-pulse"></div>
+                    </div>
+                    <div class="brand-info">
+                        <h1 class="brand-title">My Tiger</h1>
+                        <p class="brand-subtitle">Emotion Detection from Typing</p>
+                    </div>
                 </div>
             </div>
         </header>
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Typing Area -->
-            <section class="typing-section section-card">
-                <h2>Type naturally to detect your emotions</h2>
-                <div class="typing-container">
-                    <textarea 
-                        id="typingArea" 
-                        placeholder="Start typing here... Your emotions will be detected from your typing patterns, not your content."
-                        class="typing-area"
-                    ></textarea>
-                    <div class="typing-stats">
-                        <span>Words: <span id="wordCount">0</span></span>
-                        <span>Characters: <span id="charCount">0</span></span>
-                        <span>Samples: <span id="bufferSize">0</span></span>
+        <!-- Main Dashboard -->
+        <main class="dashboard">
+            <!-- Left Panel: Typing Interface -->
+            <section class="typing-panel glass-panel">
+                <div class="panel-header">
+                    <h2><i class="fas fa-keyboard"></i> Type Naturally</h2>
+                </div>
+
+                <div class="typing-workspace">
+                    <div class="editor-container">
+                        <textarea 
+                            id="typingArea" 
+                            placeholder="Start typing your thoughts... Your emotions will be detected from your typing patterns in real-time."
+                            class="smart-editor"
+                            spellcheck="false"
+                        ></textarea>
                     </div>
                 </div>
             </section>
 
-            <!-- Emotion Display -->
-            <section class="emotion-section section-card">
-                <h2>Your Current Emotional State</h2>
-                <div class="emotion-container">
-                    <div class="dominant-emotion">
-                        <div class="emotion-icon" id="dominantEmotionIcon">
-                            <i class="far fa-face-meh"></i>
+            <!-- Right Panel: Emotion Dashboard -->
+            <section class="emotion-panel glass-panel">
+                <div class="panel-header">
+                    <h2><i class="fas fa-heart-pulse"></i> Emotion Analysis</h2>
+                </div>
+
+                <!-- Dominant Emotion Display -->
+                <div class="dominant-emotion-card">
+                    <div class="emotion-visualization">
+                        <div class="emotion-circle" id="emotionCircle">
+                            <div class="emotion-icon-large" id="dominantIcon">
+                                <i class="far fa-face-meh"></i>
+                            </div>
+                            <div class="confidence-ring" id="confidenceRing"></div>
                         </div>
                         <div class="emotion-info">
-                            <h3 id="dominantEmotionName">Neutral</h3>
-                            <span class="emotion-confidence" id="dominantEmotionScore">0%</span>
+                            <h3 class="emotion-name" id="dominantEmotion">Neutral</h3>
+                            <div class="emotion-description" id="emotionDescription">
+                                Begin typing to see your emotional state
+                            </div>
                         </div>
                     </div>
-                    
-                    <div class="emotion-bars">
-                        <div class="emotion-bar" data-emotion="neutral">
-                            <div class="emotion-label">
-                                <i class="far fa-face-meh"></i>
-                                <span>Neutral</span>
+                </div>
+
+                <!-- Emotion Spectrum -->
+                <div class="emotion-spectrum">
+                    <h3>Emotion Analysis</h3>
+                    <div class="spectrum-bars">
+                        <div class="emotion-bar-modern" data-emotion="happy">
+                            <div class="bar-header">
+                                <div class="bar-icon"><i class="far fa-face-smile"></i></div>
+                                <span class="bar-label">Happy</span>
+                                <span class="bar-value" data-emotion="happy">0%</span>
                             </div>
-                            <div class="bar-container">
-                                <div class="bar-fill" data-emotion="neutral"></div>
+                            <div class="bar-track">
+                                <div class="bar-fill-modern" data-emotion="happy"></div>
+                                <div class="bar-glow" data-emotion="happy"></div>
                             </div>
-                            <span class="emotion-value" data-emotion="neutral">0%</span>
                         </div>
-                        
-                        <div class="emotion-bar" data-emotion="happy">
-                            <div class="emotion-label">
-                                <i class="far fa-face-smile"></i>
-                                <span>Happy</span>
+
+                        <div class="emotion-bar-modern" data-emotion="sad">
+                            <div class="bar-header">
+                                <div class="bar-icon"><i class="far fa-face-frown"></i></div>
+                                <span class="bar-label">Sad</span>
+                                <span class="bar-value" data-emotion="sad">0%</span>
                             </div>
-                            <div class="bar-container">
-                                <div class="bar-fill" data-emotion="happy"></div>
+                            <div class="bar-track">
+                                <div class="bar-fill-modern" data-emotion="sad"></div>
+                                <div class="bar-glow" data-emotion="sad"></div>
                             </div>
-                            <span class="emotion-value" data-emotion="happy">0%</span>
                         </div>
-                        
-                        <div class="emotion-bar" data-emotion="sad">
-                            <div class="emotion-label">
-                                <i class="far fa-face-frown"></i>
-                                <span>Sad</span>
+
+                        <div class="emotion-bar-modern" data-emotion="angry">
+                            <div class="bar-header">
+                                <div class="bar-icon"><i class="far fa-face-angry"></i></div>
+                                <span class="bar-label">Angry</span>
+                                <span class="bar-value" data-emotion="angry">0%</span>
                             </div>
-                            <div class="bar-container">
-                                <div class="bar-fill" data-emotion="sad"></div>
+                            <div class="bar-track">
+                                <div class="bar-fill-modern" data-emotion="angry"></div>
+                                <div class="bar-glow" data-emotion="angry"></div>
                             </div>
-                            <span class="emotion-value" data-emotion="sad">0%</span>
                         </div>
-                        
-                        <div class="emotion-bar" data-emotion="angry">
-                            <div class="emotion-label">
-                                <i class="far fa-face-angry"></i>
-                                <span>Angry</span>
+
+                        <div class="emotion-bar-modern" data-emotion="fearful">
+                            <div class="bar-header">
+                                <div class="bar-icon"><i class="far fa-face-dizzy"></i></div>
+                                <span class="bar-label">Fearful</span>
+                                <span class="bar-value" data-emotion="fearful">0%</span>
                             </div>
-                            <div class="bar-container">
-                                <div class="bar-fill" data-emotion="angry"></div>
+                            <div class="bar-track">
+                                <div class="bar-fill-modern" data-emotion="fearful"></div>
+                                <div class="bar-glow" data-emotion="fearful"></div>
                             </div>
-                            <span class="emotion-value" data-emotion="angry">0%</span>
                         </div>
-                        
-                        <div class="emotion-bar" data-emotion="fearful">
-                            <div class="emotion-label">
-                                <i class="far fa-face-dizzy"></i>
-                                <span>Fearful</span>
+
+                        <div class="emotion-bar-modern" data-emotion="disgusted">
+                            <div class="bar-header">
+                                <div class="bar-icon"><i class="far fa-face-grimace"></i></div>
+                                <span class="bar-label">Disgusted</span>
+                                <span class="bar-value" data-emotion="disgusted">0%</span>
                             </div>
-                            <div class="bar-container">
-                                <div class="bar-fill" data-emotion="fearful"></div>
+                            <div class="bar-track">
+                                <div class="bar-fill-modern" data-emotion="disgusted"></div>
+                                <div class="bar-glow" data-emotion="disgusted"></div>
                             </div>
-                            <span class="emotion-value" data-emotion="fearful">0%</span>
                         </div>
-                        
-                        <div class="emotion-bar" data-emotion="disgusted">
-                            <div class="emotion-label">
-                                <i class="far fa-face-grimace"></i>
-                                <span>Disgusted</span>
+
+                        <div class="emotion-bar-modern" data-emotion="surprised">
+                            <div class="bar-header">
+                                <div class="bar-icon"><i class="far fa-face-surprise"></i></div>
+                                <span class="bar-label">Surprised</span>
+                                <span class="bar-value" data-emotion="surprised">0%</span>
                             </div>
-                            <div class="bar-container">
-                                <div class="bar-fill" data-emotion="disgusted"></div>
+                            <div class="bar-track">
+                                <div class="bar-fill-modern" data-emotion="surprised"></div>
+                                <div class="bar-glow" data-emotion="surprised"></div>
                             </div>
-                            <span class="emotion-value" data-emotion="disgusted">0%</span>
                         </div>
-                        
-                        <div class="emotion-bar" data-emotion="surprised">
-                            <div class="emotion-label">
-                                <i class="far fa-face-surprise"></i>
-                                <span>Surprised</span>
+
+                        <div class="emotion-bar-modern" data-emotion="neutral">
+                            <div class="bar-header">
+                                <div class="bar-icon"><i class="far fa-face-meh"></i></div>
+                                <span class="bar-label">Neutral</span>
+                                <span class="bar-value" data-emotion="neutral">100%</span>
                             </div>
-                            <div class="bar-container">
-                                <div class="bar-fill" data-emotion="surprised"></div>
+                            <div class="bar-track">
+                                <div class="bar-fill-modern" data-emotion="neutral"></div>
+                                <div class="bar-glow" data-emotion="neutral"></div>
                             </div>
-                            <span class="emotion-value" data-emotion="surprised">0%</span>
                         </div>
                     </div>
                 </div>
             </section>
         </main>
 
-        <!-- Controls and Contribution -->
-        <section class="bottom-section">
-            <div class="controls-section">
-                <button class="btn btn-secondary" id="clearTextBtn">
-                    <i class="fas fa-eraser"></i>
-                    Clear Text
+        <!-- Simple Control Panel -->
+        <footer class="control-panel">
+            <div class="control-group">
+                <button class="modern-btn secondary" id="clearBtn">
+                    <i class="fas fa-trash-alt"></i>
+                    <span>Clear Text</span>
                 </button>
-                <button class="btn btn-primary" id="resetBufferBtn">
+                <button class="modern-btn secondary" id="resetBtn">
                     <i class="fas fa-refresh"></i>
-                    Reset Analysis
+                    <span>Reset Analysis</span>
                 </button>
             </div>
 
-            <div class="contribution-section">
-                <div class="contribution-card">
-                    <div class="contribution-header">
-                        <i class="fas fa-heart"></i>
-                        <h3>Contribute to Research</h3>
-                    </div>
-                    <p>Help improve emotion detection by sharing your anonymous keystroke data for research purposes.</p>
-                    <a href="https://bit.ly/keystroke-emotion" target="_blank" class="btn btn-contribute">
-                        <i class="fas fa-external-link-alt"></i>
-                        Contribute Your Data
-                    </a>
-                    <small>Your privacy is protected - only timing patterns are shared, never content.</small>
-                </div>
+            <div class="control-group">
+                <button class="modern-btn info" id="helpBtn">
+                    <i class="fas fa-question-circle"></i>
+                    <span>How it Works</span>
+                </button>
             </div>
-        </section>
 
-        <!-- Info Panel -->
-        <div class="info-panel" id="infoPanel">
-            <div class="info-content">
-                <h3>How My Tiger Works</h3>
-                <ul>
-                    <li><strong>Real-time Analysis:</strong> Your typing patterns are analyzed as you type</li>
-                    <li><strong>Keystroke Dynamics:</strong> Timing between keystrokes reveals emotional states</li>
-                    <li><strong>Privacy-First:</strong> Only timing data is analyzed, never your content</li>
-                    <li><strong>Machine Learning:</strong> Advanced algorithms detect 7 different emotions</li>
-                </ul>
-                <div class="privacy-note">
-                    <i class="fas fa-shield-alt"></i>
-                    <span>100% Private - Your text stays on your device</span>
+            <!-- Contribute Badge -->
+            <a href="https://bit.ly/keystroke-emotion" target="_blank" class="contribute-badge">
+                <i class="fas fa-database"></i>
+                <span>Contribute Data</span>
+            </a>
+        </footer>
+
+        <!-- Help Panel -->
+        <div class="help-panel" id="helpPanel">
+            <div class="help-content">
+                <div class="help-header">
+                    <h3><i class="fas fa-brain"></i> How My Tiger Works</h3>
+                    <button class="close-btn" id="closeHelp">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="help-sections">
+                    <div class="help-section">
+                        <div class="help-icon"><i class="fas fa-keyboard"></i></div>
+                        <h4>Keystroke Dynamics</h4>
+                        <p>Analyzes the timing patterns between your keystrokes to detect emotional states.</p>
+                    </div>
+                    
+                    <div class="help-section">
+                        <div class="help-icon"><i class="fas fa-robot"></i></div>
+                        <h4>AI Processing</h4>
+                        <p>Advanced machine learning algorithms process your typing patterns in real-time.</p>
+                    </div>
+                    
+                    <div class="help-section">
+                        <div class="help-icon"><i class="fas fa-shield-check"></i></div>
+                        <h4>Privacy First</h4>
+                        <p>Only timing data is analyzed - your actual text content never leaves your device.</p>
+                    </div>
+                    
+                    <div class="help-section">
+                        <div class="help-icon"><i class="fas fa-chart-line"></i></div>
+                        <h4>Real-time Results</h4>
+                        <p>Get instant feedback on your emotional state as you type naturally.</p>
+                    </div>
                 </div>
             </div>
         </div>
-
-        <!-- Toggle Info Button -->
-        <button class="info-toggle" id="infoToggle">
-            <i class="fas fa-info"></i>
-        </button>
     </div>
 
     <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-    
-    <!-- Particles Animation Script -->
-    <script>
-        // Create floating particles effect
-        function createParticles() {
-            const particlesContainer = document.getElementById('particles');
-            const particleCount = 50;
-            
-            for (let i = 0; i < particleCount; i++) {
-                const particle = document.createElement('div');
-                particle.className = 'particle';
-                particle.style.left = Math.random() * 100 + '%';
-                particle.style.animationDuration = (Math.random() * 3 + 2) + 's';
-                particle.style.animationDelay = Math.random() * 2 + 's';
-                particlesContainer.appendChild(particle);
-            }
-        }
-        
-        // Initialize particles when page loads
-        document.addEventListener('DOMContentLoaded', createParticles);
-    </script>
 </body>
 </html> 
