@@ -3,7 +3,6 @@ from flask_socketio import SocketIO, emit
 import joblib
 import numpy as np
 import time
-import json
 from collections import deque
 import logging
 
