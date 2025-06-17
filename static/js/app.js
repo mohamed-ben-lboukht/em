@@ -3,8 +3,7 @@ class MyTigerApp {
     constructor() {
         // Core properties
         this.socket = io();
-        this.keystrokeBuffer = [];
-        this.lastKeystrokeTime = null;
+        this.keystrokeEvents = []; // Store all keystroke events with timestamps
         
         // Emotion configuration
         this.emotions = ['neutral', 'happy', 'sad', 'angry', 'fearful', 'disgusted', 'surprised'];
@@ -85,20 +84,20 @@ class MyTigerApp {
 
         const now = performance.now();
         
-        // Calculate timing features
-        const timingSinceLastKey = this.lastKeystrokeTime ? now - this.lastKeystrokeTime : 0;
-        
-        this.keystrokeBuffer.push({
-            type: 'keydown',
-            timestamp: now,
-            timingSinceLastKey: timingSinceLastKey
+        this.keystrokeEvents.push({
+            type: 'press',
+            key: event.key,
+            timestamp: now
         });
 
-        this.lastKeystrokeTime = now;
+        // Process data for real-time feel (minimum 6 events for PP, PR, RP, RR)
+        if (this.keystrokeEvents.length >= 6) {
+            this.processKeystrokeFeatures();
+        }
         
-        // Process data for real-time feel
-        if (this.keystrokeBuffer.length >= 3) {
-            this.processKeystrokeData();
+        // Keep buffer manageable
+        if (this.keystrokeEvents.length > 100) {
+            this.keystrokeEvents = this.keystrokeEvents.slice(-60);
         }
     }
 
@@ -106,20 +105,12 @@ class MyTigerApp {
         if (this.shouldSkipKey(event.key)) return;
 
         const now = performance.now();
-        const timingSinceLastKey = this.lastKeystrokeTime ? now - this.lastKeystrokeTime : 0;
         
-        this.keystrokeBuffer.push({
-            type: 'keyup',
-            timestamp: now,
-            timingSinceLastKey: timingSinceLastKey
+        this.keystrokeEvents.push({
+            type: 'release',
+            key: event.key,
+            timestamp: now
         });
-
-        this.lastKeystrokeTime = now;
-        
-        // Keep buffer manageable
-        if (this.keystrokeBuffer.length > 50) {
-            this.keystrokeBuffer = this.keystrokeBuffer.slice(-30);
-        }
     }
 
     shouldSkipKey(key) {
@@ -127,45 +118,80 @@ class MyTigerApp {
         return skipKeys.includes(key) || key.startsWith('Arrow') || key.startsWith('F');
     }
 
-    processKeystrokeData() {
-        // Calculate timing features
-        const timings = this.calculateTimingFeatures();
+    processKeystrokeFeatures() {
+        // Calculate PP, PR, RP, RR features
+        const features = this.calculateKeystrokeFeatures();
         
-        if (timings.length > 0) {
+        // Debug logging
+        console.log('🔍 Keystroke Features:', {
+            events: this.keystrokeEvents.length,
+            pp: features.pp.length,
+            pr: features.pr.length, 
+            rp: features.rp.length,
+            rr: features.rr.length,
+            pp_data: features.pp,
+            pr_data: features.pr,
+            rp_data: features.rp,
+            rr_data: features.rr
+        });
+        
+        if (features.pp.length > 0 || features.pr.length > 0 || features.rp.length > 0 || features.rr.length > 0) {
+            console.log('📤 Sending keystroke data to server');
             // Send to server
             this.socket.emit('keystroke_data', {
-                timings: timings,
+                features: features,
                 timestamp: Date.now()
             });
+        } else {
+            console.log('⚠️ No valid keystroke features found');
         }
     }
 
-    calculateTimingFeatures() {
-        const timings = [];
+    calculateKeystrokeFeatures() {
+        const features = {
+            pp: [], // Press-to-Press
+            pr: [], // Press-to-Release  
+            rp: [], // Release-to-Press
+            rr: []  // Release-to-Release
+        };
         
-        for (let i = 1; i < this.keystrokeBuffer.length; i++) {
-            const current = this.keystrokeBuffer[i];
-            const previous = this.keystrokeBuffer[i - 1];
+        for (let i = 1; i < this.keystrokeEvents.length; i++) {
+            const current = this.keystrokeEvents[i];
+            const previous = this.keystrokeEvents[i - 1];
             
-            if (current.type === 'keydown' && previous.type === 'keydown') {
-                const dwellTime = current.timestamp - previous.timestamp;
-                if (dwellTime > 0 && dwellTime < 2000) { // Filter reasonable timings
-                    timings.push(dwellTime);
+            const timeDiff = current.timestamp - previous.timestamp;
+            
+            // Only consider reasonable timing values (10ms to 2000ms)
+            if (timeDiff > 10 && timeDiff < 2000) {
+                // PP: Press-to-Press (keydown to keydown)
+                if (current.type === 'press' && previous.type === 'press') {
+                    features.pp.push(timeDiff);
+                }
+                // PR: Press-to-Release (keydown to keyup of same key)
+                else if (current.type === 'release' && previous.type === 'press' && current.key === previous.key) {
+                    features.pr.push(timeDiff);
+                }
+                // RP: Release-to-Press (keyup to keydown)
+                else if (current.type === 'press' && previous.type === 'release') {
+                    features.rp.push(timeDiff);
+                }
+                // RR: Release-to-Release (keyup to keyup)
+                else if (current.type === 'release' && previous.type === 'release') {
+                    features.rr.push(timeDiff);
                 }
             }
         }
         
-        return timings;
+        return features;
     }
 
     clearText() {
         document.getElementById('typingArea').value = '';
-        this.keystrokeBuffer = [];
-        this.lastKeystrokeTime = null;
+        this.keystrokeEvents = [];
     }
 
     resetAnalysis() {
-        this.keystrokeBuffer = [];
+        this.keystrokeEvents = [];
         
         // Reset emotion display with animation
         this.emotions.forEach(emotion => {
@@ -180,6 +206,9 @@ class MyTigerApp {
         
         // Reset dominant emotion
         this.updateDominantEmotion('neutral', 0);
+        
+        // Reset buffer on server
+        this.socket.emit('reset_buffer');
     }
 
     toggleHelp() {
