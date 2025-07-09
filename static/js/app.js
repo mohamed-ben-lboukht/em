@@ -1,9 +1,20 @@
-// My Tiger - Simple Emotion Detection
+// My Tiger - Ultra-Optimized Emotion Detection
 class MyTigerApp {
     constructor() {
-        // Core properties
+        // Core properties with optimized data structures
         this.socket = io();
-        this.keystrokeEvents = []; // Store all keystroke events with timestamps
+        this.keystrokeBuffer = new CircularBuffer(200); // Efficient circular buffer
+        this.emotionHistory = new CircularBuffer(100); // Track emotion changes over time
+        
+        // Performance optimizations
+        this.isProcessing = false;
+        this.lastProcessTime = 0;
+        this.processThrottle = 150; // Minimum ms between processing
+        this.batchSize = 10; // Process in batches
+        
+        // Animation optimization
+        this.animationFrame = null;
+        this.pendingAnimations = new Map();
         
         // Emotion configuration
         this.emotions = ['neutral', 'happy', 'sad', 'angry', 'fearful', 'disgusted', 'surprised'];
@@ -27,78 +38,119 @@ class MyTigerApp {
             'surprised': 'Unexpected or startled reactions'
         };
         
+        // Statistics tracking
+        this.stats = {
+            keystrokesCount: 0,
+            avgTypingSpeed: 0,
+            sessionStart: Date.now(),
+            predictions: 0
+        };
+        
         // Initialize the application
         this.init();
     }
 
     async init() {
-        // Show loading screen
         this.showLoading();
+        
+        // Pre-cache DOM elements for performance
+        this.cacheElements();
         
         // Initialize components
         await this.setupEventListeners();
         await this.initializeSocketEvents();
+        this.initializePerformanceMonitor();
         
         // Hide loading screen after setup
         setTimeout(() => {
             this.hideLoading();
-        }, 1500);
+            this.startStatsUpdater();
+        }, 1200);
+    }
+
+    cacheElements() {
+        // Cache frequently accessed DOM elements
+        this.elements = {
+            typingArea: document.getElementById('typingArea'),
+            loadingOverlay: document.getElementById('loadingOverlay'),
+            dominantEmotion: document.getElementById('dominantEmotion'),
+            emotionDescription: document.getElementById('emotionDescription'),
+            dominantIcon: document.getElementById('dominantIcon'),
+            emotionCircle: document.getElementById('emotionCircle'),
+            helpPanel: document.getElementById('helpPanel'),
+            
+            // Emotion bars (pre-cache for performance)
+            emotionBars: new Map(),
+            emotionValues: new Map(),
+            emotionGlows: new Map()
+        };
+        
+        // Cache emotion bar elements
+        this.emotions.forEach(emotion => {
+            this.elements.emotionBars.set(emotion, 
+                document.querySelector(`.bar-fill-modern[data-emotion="${emotion}"]`));
+            this.elements.emotionValues.set(emotion, 
+                document.querySelector(`.bar-value[data-emotion="${emotion}"]`));
+            this.elements.emotionGlows.set(emotion, 
+                document.querySelector(`.bar-glow[data-emotion="${emotion}"]`));
+        });
     }
 
     showLoading() {
-        const loadingOverlay = document.getElementById('loadingOverlay');
-        if (loadingOverlay) {
-            loadingOverlay.style.display = 'flex';
+        if (this.elements.loadingOverlay) {
+            this.elements.loadingOverlay.style.display = 'flex';
         }
     }
 
     hideLoading() {
-        const loadingOverlay = document.getElementById('loadingOverlay');
-        if (loadingOverlay) {
-            loadingOverlay.classList.add('hidden');
+        if (this.elements.loadingOverlay) {
+            this.elements.loadingOverlay.classList.add('hidden');
             setTimeout(() => {
-                loadingOverlay.style.display = 'none';
+                this.elements.loadingOverlay.style.display = 'none';
             }, 500);
         }
     }
 
     async setupEventListeners() {
-        const typingArea = document.getElementById('typingArea');
-        
-        // Keystroke tracking
-        typingArea.addEventListener('keydown', (e) => this.handleKeyDown(e));
-        typingArea.addEventListener('keyup', (e) => this.handleKeyUp(e));
+        // Optimized keystroke tracking with passive listeners
+        this.elements.typingArea.addEventListener('keydown', this.handleKeyDown.bind(this), { passive: true });
+        this.elements.typingArea.addEventListener('keyup', this.handleKeyUp.bind(this), { passive: true });
 
-        // Button events
-        document.getElementById('clearBtn')?.addEventListener('click', () => this.clearText());
-        document.getElementById('resetBtn')?.addEventListener('click', () => this.resetAnalysis());
-        document.getElementById('helpBtn')?.addEventListener('click', () => this.toggleHelp());
-        document.getElementById('closeHelp')?.addEventListener('click', () => this.closeHelp());
+        // Button events with debouncing
+        this.attachButtonListener('clearBtn', this.debounce(this.clearText.bind(this), 200));
+        this.attachButtonListener('resetBtn', this.debounce(this.resetAnalysis.bind(this), 300));
+        this.attachButtonListener('helpBtn', this.toggleHelp.bind(this));
+        this.attachButtonListener('closeHelp', this.closeHelp.bind(this));
+        this.attachButtonListener('exportBtn', this.exportData.bind(this));
 
         // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => this.handleKeyboardShortcuts(e));
+        document.addEventListener('keydown', this.handleKeyboardShortcuts.bind(this), { passive: false });
+        
+        // Add resize listener for responsive updates
+        window.addEventListener('resize', this.debounce(this.handleResize.bind(this), 250), { passive: true });
+    }
+
+    attachButtonListener(id, handler) {
+        const element = document.getElementById(id);
+        if (element) {
+            element.addEventListener('click', handler);
+        }
     }
 
     handleKeyDown(event) {
         if (this.shouldSkipKey(event.key)) return;
 
         const now = performance.now();
+        this.stats.keystrokesCount++;
         
-        this.keystrokeEvents.push({
+        this.keystrokeBuffer.push({
             type: 'press',
             key: event.key,
             timestamp: now
         });
 
-        // Process data for real-time feel (minimum 6 events for PP, PR, RP, RR)
-        if (this.keystrokeEvents.length >= 6) {
-            this.processKeystrokeFeatures();
-        }
-        
-        // Keep buffer manageable
-        if (this.keystrokeEvents.length > 100) {
-            this.keystrokeEvents = this.keystrokeEvents.slice(-60);
-        }
+        // Throttled processing for performance
+        this.throttledProcess();
     }
 
     handleKeyUp(event) {
@@ -106,7 +158,7 @@ class MyTigerApp {
 
         const now = performance.now();
         
-        this.keystrokeEvents.push({
+        this.keystrokeBuffer.push({
             type: 'release',
             key: event.key,
             timestamp: now
@@ -114,37 +166,48 @@ class MyTigerApp {
     }
 
     shouldSkipKey(key) {
-        const skipKeys = ['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab', 'Escape'];
-        return skipKeys.includes(key) || key.startsWith('Arrow') || key.startsWith('F');
+        // Optimized with Set for O(1) lookup
+        const skipKeys = new Set(['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab', 'Escape']);
+        return skipKeys.has(key) || key.startsWith('Arrow') || key.startsWith('F');
+    }
+
+    throttledProcess() {
+        const now = performance.now();
+        
+        if (this.isProcessing || (now - this.lastProcessTime) < this.processThrottle) {
+            return;
+        }
+        
+        if (this.keystrokeBuffer.size() >= 8) { // Minimum events for analysis
+            this.lastProcessTime = now;
+            this.processKeystrokeFeatures();
+        }
     }
 
     processKeystrokeFeatures() {
-        // Calculate PP, PR, RP, RR features
-        const features = this.calculateKeystrokeFeatures();
+        if (this.isProcessing) return;
         
-        // Debug logging
-        console.log('🔍 Keystroke Features:', {
-            events: this.keystrokeEvents.length,
-            pp: features.pp.length,
-            pr: features.pr.length, 
-            rp: features.rp.length,
-            rr: features.rr.length,
-            pp_data: features.pp,
-            pr_data: features.pr,
-            rp_data: features.rp,
-            rr_data: features.rr
-        });
+        this.isProcessing = true;
         
-        if (features.pp.length > 0 || features.pr.length > 0 || features.rp.length > 0 || features.rr.length > 0) {
-            console.log('📤 Sending keystroke data to server');
-            // Send to server
-            this.socket.emit('keystroke_data', {
-                features: features,
-                timestamp: Date.now()
-            });
-        } else {
-            console.log('⚠️ No valid keystroke features found');
-        }
+        // Process in next tick to avoid blocking UI
+        setTimeout(() => {
+            try {
+                const features = this.calculateKeystrokeFeatures();
+                
+                if (this.hasValidFeatures(features)) {
+                    this.socket.emit('keystroke_data', {
+                        features: features,
+                        timestamp: Date.now(),
+                        stats: this.stats
+                    });
+                    this.stats.predictions++;
+                }
+            } catch (error) {
+                console.error('Feature processing error:', error);
+            } finally {
+                this.isProcessing = false;
+            }
+        }, 0);
     }
 
     calculateKeystrokeFeatures() {
@@ -155,29 +218,33 @@ class MyTigerApp {
             rr: []  // Release-to-Release
         };
         
-        for (let i = 1; i < this.keystrokeEvents.length; i++) {
-            const current = this.keystrokeEvents[i];
-            const previous = this.keystrokeEvents[i - 1];
+        const events = this.keystrokeBuffer.getLastN(50); // Get recent events
+        
+        for (let i = 1; i < events.length; i++) {
+            const current = events[i];
+            const previous = events[i - 1];
             
             const timeDiff = current.timestamp - previous.timestamp;
             
-            // Only consider reasonable timing values (10ms to 2000ms)
-            if (timeDiff > 10 && timeDiff < 2000) {
-                // PP: Press-to-Press (keydown to keydown)
-                if (current.type === 'press' && previous.type === 'press') {
-                    features.pp.push(timeDiff);
-                }
-                // PR: Press-to-Release (keydown to keyup of same key)
-                else if (current.type === 'release' && previous.type === 'press' && current.key === previous.key) {
-                    features.pr.push(timeDiff);
-                }
-                // RP: Release-to-Press (keyup to keydown)
-                else if (current.type === 'press' && previous.type === 'release') {
-                    features.rp.push(timeDiff);
-                }
-                // RR: Release-to-Release (keyup to keyup)
-                else if (current.type === 'release' && previous.type === 'release') {
-                    features.rr.push(timeDiff);
+            // Optimized timing validation
+            if (timeDiff >= 10 && timeDiff <= 2000) {
+                const key = `${previous.type}-${current.type}`;
+                
+                switch (key) {
+                    case 'press-press':
+                        features.pp.push(timeDiff);
+                        break;
+                    case 'press-release':
+                        if (current.key === previous.key) {
+                            features.pr.push(timeDiff);
+                        }
+                        break;
+                    case 'release-press':
+                        features.rp.push(timeDiff);
+                        break;
+                    case 'release-release':
+                        features.rr.push(timeDiff);
+                        break;
                 }
             }
         }
@@ -185,61 +252,85 @@ class MyTigerApp {
         return features;
     }
 
+    hasValidFeatures(features) {
+        return features.pp.length > 0 || features.pr.length > 0 || 
+               features.rp.length > 0 || features.rr.length > 0;
+    }
+
     clearText() {
-        document.getElementById('typingArea').value = '';
-        this.keystrokeEvents = [];
+        this.elements.typingArea.value = '';
+        this.keystrokeBuffer.clear();
+        this.stats.keystrokesCount = 0;
     }
 
     resetAnalysis() {
-        this.keystrokeEvents = [];
+        this.keystrokeBuffer.clear();
+        this.emotionHistory.clear();
+        this.stats = {
+            keystrokesCount: 0,
+            avgTypingSpeed: 0,
+            sessionStart: Date.now(),
+            predictions: 0
+        };
         
-        // Reset emotion display with animation
-        this.emotions.forEach(emotion => {
-            const barFill = document.querySelector(`.bar-fill-modern[data-emotion="${emotion}"]`);
-            const barValue = document.querySelector(`.bar-value[data-emotion="${emotion}"]`);
-            
-            if (barFill && barValue) {
-                barFill.style.width = '0%';
-                barValue.textContent = '0%';
-            }
-        });
+        // Efficient batch reset
+        this.batchUpdateEmotions(this.emotions.reduce((acc, emotion) => {
+            acc[emotion] = 0;
+            return acc;
+        }, {}));
         
-        // Reset dominant emotion
         this.updateDominantEmotion('neutral', 0);
-        
-        // Reset buffer on server
         this.socket.emit('reset_buffer');
     }
 
     toggleHelp() {
-        const helpPanel = document.getElementById('helpPanel');
-        if (helpPanel) {
-            helpPanel.classList.toggle('open');
-        }
+        this.elements.helpPanel?.classList.toggle('open');
     }
 
     closeHelp() {
-        const helpPanel = document.getElementById('helpPanel');
-        if (helpPanel) {
-            helpPanel.classList.remove('open');
-        }
+        this.elements.helpPanel?.classList.remove('open');
+    }
+
+    exportData() {
+        const exportData = {
+            metadata: {
+                app: "My Tiger - Optimized Emotion Detection",
+                timestamp: new Date().toISOString(),
+                session_duration: Date.now() - this.stats.sessionStart,
+                total_keystrokes: this.stats.keystrokesCount,
+                total_predictions: this.stats.predictions
+            },
+            emotions: this.emotionHistory.toArray(),
+            stats: this.stats
+        };
+        
+        this.downloadJSON(exportData, `my_tiger_session_${Date.now()}.json`);
+    }
+
+    downloadJSON(data, filename) {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 
     handleKeyboardShortcuts(event) {
         if (event.ctrlKey || event.metaKey) {
-            switch (event.key) {
-                case 'l':
-                    event.preventDefault();
-                    this.clearText();
-                    break;
-                case 'r':
-                    event.preventDefault();
-                    this.resetAnalysis();
-                    break;
-                case '/':
-                    event.preventDefault();
-                    this.toggleHelp();
-                    break;
+            const shortcuts = {
+                'l': this.clearText.bind(this),
+                'r': this.resetAnalysis.bind(this),
+                '/': this.toggleHelp.bind(this),
+                'e': this.exportData.bind(this)
+            };
+            
+            if (shortcuts[event.key]) {
+                event.preventDefault();
+                shortcuts[event.key]();
             }
         }
         
@@ -248,17 +339,27 @@ class MyTigerApp {
         }
     }
 
+    handleResize() {
+        // Responsive adjustments if needed
+        this.cacheElements(); // Re-cache elements if layout changed
+    }
+
     initializeSocketEvents() {
         this.socket.on('connect', () => {
-            console.log('Connected to My Tiger server');
+            console.log('✅ Connected to My Tiger server');
         });
 
         this.socket.on('disconnect', () => {
-            console.log('Disconnected from server');
+            console.log('❌ Disconnected from server');
         });
 
         this.socket.on('emotion_prediction', (data) => {
             this.updateEmotionDisplay(data.emotions);
+            this.emotionHistory.push({
+                emotions: data.emotions,
+                timestamp: Date.now(),
+                mode: data.mode || 'hybrid'
+            });
         });
 
         this.socket.on('error', (error) => {
@@ -269,74 +370,173 @@ class MyTigerApp {
     updateEmotionDisplay(emotions) {
         if (!emotions || typeof emotions !== 'object') return;
 
-        // Find dominant emotion
-        let dominantEmotion = 'neutral';
-        let maxValue = 0;
+        // Find dominant emotion efficiently
+        const [dominantEmotion, maxValue] = Object.entries(emotions)
+            .reduce((max, [emotion, value]) => value > max[1] ? [emotion, value] : max, ['neutral', 0]);
         
-        Object.entries(emotions).forEach(([emotion, value]) => {
-            if (value > maxValue) {
-                maxValue = value;
-                dominantEmotion = emotion;
-            }
-        });
-        
-        // Update emotion bars with smooth animations
-        this.emotions.forEach(emotion => {
-            const value = emotions[emotion] || 0;
-            const percentage = Math.round(value * 100);
-            
-            const barFill = document.querySelector(`.bar-fill-modern[data-emotion="${emotion}"]`);
-            const barValue = document.querySelector(`.bar-value[data-emotion="${emotion}"]`);
-            const barGlow = document.querySelector(`.bar-glow[data-emotion="${emotion}"]`);
-            
-            if (barFill && barValue) {
-                // Animate bar fill
-                setTimeout(() => {
-                    barFill.style.width = `${percentage}%`;
-                    barValue.textContent = `${percentage}%`;
-                    
-                    // Trigger glow effect for active emotions
-                    if (percentage > 10 && barGlow) {
-                        barGlow.style.left = '100%';
-                        setTimeout(() => {
-                            barGlow.style.left = '-100%';
-                        }, 800);
-                    }
-                }, Math.random() * 100); // Stagger animations
-            }
-        });
-
-        // Update dominant emotion
+        // Batch update emotions with optimized animations
+        this.batchUpdateEmotions(emotions);
         this.updateDominantEmotion(dominantEmotion, maxValue);
     }
 
+    batchUpdateEmotions(emotions) {
+        // Cancel previous animation frame
+        if (this.animationFrame) {
+            cancelAnimationFrame(this.animationFrame);
+        }
+        
+        // Schedule batch update
+        this.animationFrame = requestAnimationFrame(() => {
+            this.emotions.forEach(emotion => {
+                const value = emotions[emotion] || 0;
+                const percentage = Math.round(value * 100);
+                
+                const barFill = this.elements.emotionBars.get(emotion);
+                const barValue = this.elements.emotionValues.get(emotion);
+                
+                if (barFill && barValue) {
+                    // Use transform for better performance
+                    barFill.style.transform = `scaleX(${percentage / 100})`;
+                    barFill.style.transformOrigin = 'left';
+                    barValue.textContent = `${percentage}%`;
+                    
+                    // Add glow effect for significant emotions
+                    if (percentage > 15) {
+                        this.triggerGlowEffect(emotion);
+                    }
+                }
+            });
+        });
+    }
+
+    triggerGlowEffect(emotion) {
+        const barGlow = this.elements.emotionGlows.get(emotion);
+        if (barGlow && !barGlow.classList.contains('active')) {
+            barGlow.classList.add('active');
+            setTimeout(() => {
+                barGlow.classList.remove('active');
+            }, 800);
+        }
+    }
+
     updateDominantEmotion(emotion, confidence) {
-        const emotionName = document.getElementById('dominantEmotion');
-        const emotionDescription = document.getElementById('emotionDescription');
-        const emotionIcon = document.getElementById('dominantIcon');
-        const emotionCircle = document.getElementById('emotionCircle');
+        const elements = this.elements;
+        
+        // Batch DOM updates
+        requestAnimationFrame(() => {
+            if (elements.dominantEmotion) {
+                elements.dominantEmotion.textContent = emotion.charAt(0).toUpperCase() + emotion.slice(1);
+            }
 
-        if (emotionName) {
-            emotionName.textContent = emotion.charAt(0).toUpperCase() + emotion.slice(1);
-        }
+            if (elements.emotionDescription) {
+                elements.emotionDescription.textContent = this.emotionDescriptions[emotion] || 'Analyzing...';
+            }
 
-        if (emotionDescription) {
-            emotionDescription.textContent = this.emotionDescriptions[emotion] || 'Analyzing your emotional state...';
-        }
+            if (elements.dominantIcon) {
+                const iconClass = this.emotionIcons[emotion] || 'far fa-face-meh';
+                elements.dominantIcon.innerHTML = `<i class="${iconClass}"></i>`;
+            }
 
-        if (emotionIcon) {
-            const iconClass = this.emotionIcons[emotion] || 'far fa-face-meh';
-            emotionIcon.innerHTML = `<i class="${iconClass}"></i>`;
-        }
+            if (elements.emotionCircle) {
+                elements.emotionCircle.setAttribute('data-emotion', emotion);
+            }
+        });
+    }
 
-        // Update emotion circle styling
-        if (emotionCircle) {
-            emotionCircle.setAttribute('data-emotion', emotion);
+    initializePerformanceMonitor() {
+        // Optional performance monitoring
+        if (process.env.NODE_ENV === 'development') {
+            setInterval(() => {
+                console.log('📊 Performance Stats:', {
+                    bufferSize: this.keystrokeBuffer.size(),
+                    historySize: this.emotionHistory.size(),
+                    keystrokesPerMin: Math.round(this.stats.keystrokesCount / ((Date.now() - this.stats.sessionStart) / 60000)),
+                    predictions: this.stats.predictions
+                });
+            }, 30000);
         }
+    }
+
+    startStatsUpdater() {
+        // Update statistics every 5 seconds
+        setInterval(() => {
+            const sessionTime = (Date.now() - this.stats.sessionStart) / 1000;
+            this.stats.avgTypingSpeed = this.stats.keystrokesCount / sessionTime * 60; // KPM
+        }, 5000);
+    }
+
+    // Utility methods
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+}
+
+// Efficient Circular Buffer Implementation
+class CircularBuffer {
+    constructor(size) {
+        this.size = size;
+        this.buffer = new Array(size);
+        this.start = 0;
+        this.count = 0;
+    }
+
+    push(item) {
+        this.buffer[(this.start + this.count) % this.size] = item;
+        if (this.count < this.size) {
+            this.count++;
+        } else {
+            this.start = (this.start + 1) % this.size;
+        }
+    }
+
+    getLastN(n) {
+        const result = [];
+        const actualN = Math.min(n, this.count);
+        
+        for (let i = 0; i < actualN; i++) {
+            const index = (this.start + this.count - actualN + i) % this.size;
+            result.push(this.buffer[index]);
+        }
+        
+        return result;
+    }
+
+    toArray() {
+        const result = [];
+        for (let i = 0; i < this.count; i++) {
+            result.push(this.buffer[(this.start + i) % this.size]);
+        }
+        return result;
+    }
+
+    clear() {
+        this.start = 0;
+        this.count = 0;
+    }
+
+    size() {
+        return this.count;
     }
 }
 
 // Initialize the application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.myTiger = new MyTigerApp();
-}); 
+});
+
+// Add service worker for PWA capabilities
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/static/js/sw.js')
+            .then(registration => console.log('SW registered'))
+            .catch(error => console.log('SW registration failed'));
+    });
+} 

@@ -3,171 +3,244 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Tiger - Emotion Detection</title>
+    <meta name="description" content="My Tiger - Real-time emotion detection from keystroke dynamics. Privacy-first AI that analyzes your typing patterns to detect emotional states.">
+    <meta name="keywords" content="emotion detection, keystroke dynamics, AI, machine learning, privacy-first, real-time analysis">
+    <meta name="author" content="My Tiger Team">
+    
+    <!-- Progressive Web App -->
+    <meta name="theme-color" content="#667eea">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="My Tiger">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="My Tiger - Emotion Detection">
+    <meta property="og:description" content="Real-time emotion detection from keystroke dynamics">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="/">
+    
+    <title>My Tiger - Ultra-Fast Emotion Detection</title>
+    
+    <!-- Preload critical resources -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" as="style">
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style">
+    
+    <!-- Stylesheets -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='images/apple-touch-icon.png') }}">
+    
+    <!-- Performance optimizations -->
+    <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
+    <link rel="dns-prefetch" href="//fonts.googleapis.com">
 </head>
 <body>
     <!-- Neural Network Background Animation -->
-    <div class="neural-bg" id="neuralBg"></div>
+    <div class="neural-bg" id="neuralBg" aria-hidden="true"></div>
     
     <!-- Loading Overlay -->
-    <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-overlay" id="loadingOverlay" role="dialog" aria-labelledby="loading-title" aria-live="polite">
         <div class="loading-content">
             <div class="tiger-loader">
-                <div class="tiger-face">🐅</div>
-                <div class="loading-text">Initializing My Tiger...</div>
+                <div class="tiger-face" role="img" aria-label="Tiger emoji">🐅</div>
+                <div class="loading-text" id="loading-title">Initializing My Tiger...</div>
             </div>
         </div>
     </div>
 
     <div class="app-container">
-        <!-- Simple Header -->
-        <header class="app-header">
+        <!-- Enhanced Header -->
+        <header class="app-header" role="banner">
             <div class="header-content">
                 <div class="logo-section">
                     <div class="logo-container">
-                        <img src="{{ url_for('static', filename='images/mytiger.png') }}" alt="My Tiger" class="logo-img">
-                        <div class="logo-pulse"></div>
+                        <img src="{{ url_for('static', filename='images/mytiger.png') }}" 
+                             alt="My Tiger Logo" 
+                             class="logo-img"
+                             loading="lazy">
+                        <div class="logo-pulse" aria-hidden="true"></div>
                     </div>
                     <div class="brand-info">
                         <h1 class="brand-title">My Tiger</h1>
-                        <p class="brand-subtitle">Emotion Detection from Typing</p>
+                        <p class="brand-subtitle">Ultra-Fast Emotion Detection</p>
                     </div>
                 </div>
             </div>
         </header>
 
         <!-- Main Dashboard -->
-        <main class="dashboard">
-            <!-- Left Panel: Typing Interface -->
-            <section class="typing-panel glass-panel">
+        <main class="dashboard" role="main">
+            <!-- Left Panel: Enhanced Typing Interface -->
+            <section class="typing-panel glass-panel" aria-labelledby="typing-heading">
                 <div class="panel-header">
-                    <h2><i class="fas fa-keyboard"></i> Type Naturally</h2>
+                    <h2 id="typing-heading">
+                        <i class="fas fa-keyboard" aria-hidden="true"></i> 
+                        Type Naturally
+                    </h2>
+                    <div class="typing-stats" id="typingStats" aria-live="polite">
+                        <span class="stat-item">
+                            <i class="fas fa-clock" aria-hidden="true"></i>
+                            <span id="sessionTime">0:00</span>
+                        </span>
+                        <span class="stat-item">
+                            <i class="fas fa-keyboard" aria-hidden="true"></i>
+                            <span id="keystrokeCount">0</span>
+                        </span>
+                    </div>
                 </div>
 
                 <div class="typing-workspace">
                     <div class="editor-container">
                         <textarea 
                             id="typingArea" 
-                            placeholder="Start typing your thoughts... Your emotions will be detected from your typing patterns in real-time."
+                            placeholder="Start typing your thoughts... Your emotions will be detected from your typing patterns in real-time. This is completely private - only timing data is analyzed."
                             class="smart-editor"
                             spellcheck="false"
+                            aria-label="Text input area for emotion detection"
+                            aria-describedby="typing-description"
                         ></textarea>
+                        <div id="typing-description" class="sr-only">
+                            Type naturally in this area. Only your typing patterns are analyzed for emotion detection - your text content remains private.
+                        </div>
+                    </div>
+                    
+                    <!-- Progress indicator -->
+                    <div class="analysis-progress" id="analysisProgress" aria-hidden="true">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <div class="progress-text">
+                            <span id="progressStatus">Ready to analyze...</span>
+                        </div>
                     </div>
                 </div>
             </section>
 
-            <!-- Right Panel: Emotion Dashboard -->
-            <section class="emotion-panel glass-panel">
+            <!-- Right Panel: Enhanced Emotion Dashboard -->
+            <section class="emotion-panel glass-panel" aria-labelledby="emotion-heading">
                 <div class="panel-header">
-                    <h2><i class="fas fa-heart-pulse"></i> Emotion Analysis</h2>
+                    <h2 id="emotion-heading">
+                        <i class="fas fa-heart-pulse" aria-hidden="true"></i> 
+                        Emotion Analysis
+                    </h2>
+                    <div class="confidence-indicator" id="confidenceIndicator" aria-live="polite">
+                        <span class="confidence-label">Confidence:</span>
+                        <span class="confidence-value" id="confidenceValue">--</span>
+                    </div>
                 </div>
 
-                <!-- Dominant Emotion Display -->
+                <!-- Enhanced Dominant Emotion Display -->
                 <div class="dominant-emotion-card">
-                    <div class="emotion-visualization">
-                        <div class="emotion-circle" id="emotionCircle">
+                    <div class="emotion-visualization" role="region" aria-labelledby="dominant-emotion-title">
+                        <div class="emotion-circle" id="emotionCircle" role="img" aria-describedby="emotion-description">
                             <div class="emotion-icon-large" id="dominantIcon">
-                                <i class="far fa-face-meh"></i>
+                                <i class="far fa-face-meh" aria-hidden="true"></i>
                             </div>
-                            <div class="confidence-ring" id="confidenceRing"></div>
+                            <div class="confidence-ring" id="confidenceRing" aria-hidden="true"></div>
                         </div>
                         <div class="emotion-info">
                             <h3 class="emotion-name" id="dominantEmotion">Neutral</h3>
                             <div class="emotion-description" id="emotionDescription">
                                 Begin typing to see your emotional state
                             </div>
+                            <div class="emotion-meta" id="emotionMeta" aria-live="polite">
+                                <span class="detection-time">Last update: <span id="lastUpdate">--</span></span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Emotion Spectrum -->
-                <div class="emotion-spectrum">
-                    <h3>Emotion Analysis</h3>
-                    <div class="spectrum-bars">
-                        <div class="emotion-bar-modern" data-emotion="happy">
+                <!-- Enhanced Emotion Spectrum -->
+                <div class="emotion-spectrum" role="region" aria-labelledby="spectrum-heading">
+                    <h3 id="spectrum-heading">Detailed Analysis</h3>
+                    <div class="spectrum-bars" role="group" aria-label="Emotion intensity bars">
+                        
+                        <div class="emotion-bar-modern" data-emotion="happy" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Happy emotion level">
                             <div class="bar-header">
-                                <div class="bar-icon"><i class="far fa-face-smile"></i></div>
+                                <div class="bar-icon"><i class="far fa-face-smile" aria-hidden="true"></i></div>
                                 <span class="bar-label">Happy</span>
                                 <span class="bar-value" data-emotion="happy">0%</span>
                             </div>
                             <div class="bar-track">
                                 <div class="bar-fill-modern" data-emotion="happy"></div>
-                                <div class="bar-glow" data-emotion="happy"></div>
+                                <div class="bar-glow" data-emotion="happy" aria-hidden="true"></div>
                             </div>
                         </div>
 
-                        <div class="emotion-bar-modern" data-emotion="sad">
+                        <div class="emotion-bar-modern" data-emotion="sad" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Sad emotion level">
                             <div class="bar-header">
-                                <div class="bar-icon"><i class="far fa-face-frown"></i></div>
+                                <div class="bar-icon"><i class="far fa-face-frown" aria-hidden="true"></i></div>
                                 <span class="bar-label">Sad</span>
                                 <span class="bar-value" data-emotion="sad">0%</span>
                             </div>
                             <div class="bar-track">
                                 <div class="bar-fill-modern" data-emotion="sad"></div>
-                                <div class="bar-glow" data-emotion="sad"></div>
+                                <div class="bar-glow" data-emotion="sad" aria-hidden="true"></div>
                             </div>
                         </div>
 
-                        <div class="emotion-bar-modern" data-emotion="angry">
+                        <div class="emotion-bar-modern" data-emotion="angry" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Angry emotion level">
                             <div class="bar-header">
-                                <div class="bar-icon"><i class="far fa-face-angry"></i></div>
+                                <div class="bar-icon"><i class="far fa-face-angry" aria-hidden="true"></i></div>
                                 <span class="bar-label">Angry</span>
                                 <span class="bar-value" data-emotion="angry">0%</span>
                             </div>
                             <div class="bar-track">
                                 <div class="bar-fill-modern" data-emotion="angry"></div>
-                                <div class="bar-glow" data-emotion="angry"></div>
+                                <div class="bar-glow" data-emotion="angry" aria-hidden="true"></div>
                             </div>
                         </div>
 
-                        <div class="emotion-bar-modern" data-emotion="fearful">
+                        <div class="emotion-bar-modern" data-emotion="fearful" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Fearful emotion level">
                             <div class="bar-header">
-                                <div class="bar-icon"><i class="far fa-face-dizzy"></i></div>
+                                <div class="bar-icon"><i class="far fa-face-dizzy" aria-hidden="true"></i></div>
                                 <span class="bar-label">Fearful</span>
                                 <span class="bar-value" data-emotion="fearful">0%</span>
                             </div>
                             <div class="bar-track">
                                 <div class="bar-fill-modern" data-emotion="fearful"></div>
-                                <div class="bar-glow" data-emotion="fearful"></div>
+                                <div class="bar-glow" data-emotion="fearful" aria-hidden="true"></div>
                             </div>
                         </div>
 
-                        <div class="emotion-bar-modern" data-emotion="disgusted">
+                        <div class="emotion-bar-modern" data-emotion="disgusted" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Disgusted emotion level">
                             <div class="bar-header">
-                                <div class="bar-icon"><i class="far fa-face-grimace"></i></div>
+                                <div class="bar-icon"><i class="far fa-face-grimace" aria-hidden="true"></i></div>
                                 <span class="bar-label">Disgusted</span>
                                 <span class="bar-value" data-emotion="disgusted">0%</span>
                             </div>
                             <div class="bar-track">
                                 <div class="bar-fill-modern" data-emotion="disgusted"></div>
-                                <div class="bar-glow" data-emotion="disgusted"></div>
+                                <div class="bar-glow" data-emotion="disgusted" aria-hidden="true"></div>
                             </div>
                         </div>
 
-                        <div class="emotion-bar-modern" data-emotion="surprised">
+                        <div class="emotion-bar-modern" data-emotion="surprised" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Surprised emotion level">
                             <div class="bar-header">
-                                <div class="bar-icon"><i class="far fa-face-surprise"></i></div>
+                                <div class="bar-icon"><i class="far fa-face-surprise" aria-hidden="true"></i></div>
                                 <span class="bar-label">Surprised</span>
                                 <span class="bar-value" data-emotion="surprised">0%</span>
                             </div>
                             <div class="bar-track">
                                 <div class="bar-fill-modern" data-emotion="surprised"></div>
-                                <div class="bar-glow" data-emotion="surprised"></div>
+                                <div class="bar-glow" data-emotion="surprised" aria-hidden="true"></div>
                             </div>
                         </div>
 
-                        <div class="emotion-bar-modern" data-emotion="neutral">
+                        <div class="emotion-bar-modern" data-emotion="neutral" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" aria-label="Neutral emotion level">
                             <div class="bar-header">
-                                <div class="bar-icon"><i class="far fa-face-meh"></i></div>
+                                <div class="bar-icon"><i class="far fa-face-meh" aria-hidden="true"></i></div>
                                 <span class="bar-label">Neutral</span>
                                 <span class="bar-value" data-emotion="neutral">100%</span>
                             </div>
                             <div class="bar-track">
                                 <div class="bar-fill-modern" data-emotion="neutral"></div>
-                                <div class="bar-glow" data-emotion="neutral"></div>
+                                <div class="bar-glow" data-emotion="neutral" aria-hidden="true"></div>
                             </div>
                         </div>
                     </div>
@@ -175,74 +248,130 @@
             </section>
         </main>
 
-        <!-- Simple Control Panel -->
-        <footer class="control-panel">
+        <!-- Enhanced Control Panel -->
+        <footer class="control-panel" role="contentinfo">
             <div class="control-group">
-                <button class="modern-btn secondary" id="clearBtn">
-                    <i class="fas fa-trash-alt"></i>
+                <button class="modern-btn secondary" id="clearBtn" aria-describedby="clear-help">
+                    <i class="fas fa-trash-alt" aria-hidden="true"></i>
                     <span>Clear Text</span>
                 </button>
-                <button class="modern-btn secondary" id="resetBtn">
-                    <i class="fas fa-refresh"></i>
+                <div id="clear-help" class="sr-only">Clears the text area and resets keystroke data</div>
+                
+                <button class="modern-btn secondary" id="resetBtn" aria-describedby="reset-help">
+                    <i class="fas fa-refresh" aria-hidden="true"></i>
                     <span>Reset Analysis</span>
                 </button>
+                <div id="reset-help" class="sr-only">Resets all emotion analysis data</div>
+                
+                <button class="modern-btn secondary" id="exportBtn" aria-describedby="export-help">
+                    <i class="fas fa-download" aria-hidden="true"></i>
+                    <span>Export Data</span>
+                </button>
+                <div id="export-help" class="sr-only">Downloads your session data as JSON</div>
             </div>
 
             <div class="control-group">
-                <button class="modern-btn info" id="helpBtn">
-                    <i class="fas fa-question-circle"></i>
+                <button class="modern-btn info" id="helpBtn" aria-describedby="help-label" aria-expanded="false">
+                    <i class="fas fa-question-circle" aria-hidden="true"></i>
                     <span>How it Works</span>
                 </button>
+                <div id="help-label" class="sr-only">Opens help panel explaining how emotion detection works</div>
             </div>
 
-            <!-- Contribute Badge -->
-            <a href="https://bit.ly/keystroke-emotion" target="_blank" class="contribute-badge">
-                <i class="fas fa-database"></i>
+            <!-- Enhanced Contribute Badge -->
+            <a href="https://bit.ly/keystroke-emotion" 
+               target="_blank" 
+               rel="noopener noreferrer"
+               class="contribute-badge"
+               aria-describedby="contribute-help">
+                <i class="fas fa-database" aria-hidden="true"></i>
                 <span>Contribute Data</span>
             </a>
+            <div id="contribute-help" class="sr-only">Help improve emotion detection research by contributing anonymous data</div>
         </footer>
 
-        <!-- Help Panel -->
-        <div class="help-panel" id="helpPanel">
+        <!-- Enhanced Help Panel -->
+        <div class="help-panel" id="helpPanel" role="dialog" aria-labelledby="help-title" aria-hidden="true">
             <div class="help-content">
                 <div class="help-header">
-                    <h3><i class="fas fa-brain"></i> How My Tiger Works</h3>
-                    <button class="close-btn" id="closeHelp">
-                        <i class="fas fa-times"></i>
+                    <h3 id="help-title">
+                        <i class="fas fa-brain" aria-hidden="true"></i> 
+                        How My Tiger Works
+                    </h3>
+                    <button class="close-btn" id="closeHelp" aria-label="Close help panel">
+                        <i class="fas fa-times" aria-hidden="true"></i>
                     </button>
                 </div>
                 
                 <div class="help-sections">
                     <div class="help-section">
-                        <div class="help-icon"><i class="fas fa-keyboard"></i></div>
+                        <div class="help-icon">
+                            <i class="fas fa-keyboard" aria-hidden="true"></i>
+                        </div>
                         <h4>Keystroke Dynamics</h4>
-                        <p>Analyzes the timing patterns between your keystrokes to detect emotional states.</p>
+                        <p>Analyzes the timing patterns between your keystrokes to detect emotional states. This includes press-to-press intervals, dwell times, and flight times between keys.</p>
                     </div>
                     
                     <div class="help-section">
-                        <div class="help-icon"><i class="fas fa-robot"></i></div>
+                        <div class="help-icon">
+                            <i class="fas fa-robot" aria-hidden="true"></i>
+                        </div>
                         <h4>AI Processing</h4>
-                        <p>Advanced machine learning algorithms process your typing patterns in real-time.</p>
+                        <p>Advanced machine learning algorithms process your typing patterns in real-time using both rule-based analysis and XGBoost models for accurate emotion detection.</p>
                     </div>
                     
                     <div class="help-section">
-                        <div class="help-icon"><i class="fas fa-shield-check"></i></div>
+                        <div class="help-icon">
+                            <i class="fas fa-shield-check" aria-hidden="true"></i>
+                        </div>
                         <h4>Privacy First</h4>
-                        <p>Only timing data is analyzed - your actual text content never leaves your device.</p>
+                        <p>Only timing data is analyzed - your actual text content never leaves your device. No personal information is stored or transmitted to external servers.</p>
                     </div>
                     
                     <div class="help-section">
-                        <div class="help-icon"><i class="fas fa-chart-line"></i></div>
+                        <div class="help-icon">
+                            <i class="fas fa-chart-line" aria-hidden="true"></i>
+                        </div>
                         <h4>Real-time Results</h4>
-                        <p>Get instant feedback on your emotional state as you type naturally.</p>
+                        <p>Get instant feedback on your emotional state as you type naturally. The system continuously updates emotion predictions with sub-second latency.</p>
+                    </div>
+                    
+                    <div class="help-section">
+                        <div class="help-icon">
+                            <i class="fas fa-cogs" aria-hidden="true"></i>
+                        </div>
+                        <h4>Keyboard Shortcuts</h4>
+                        <p>
+                            <strong>Ctrl+L:</strong> Clear text<br>
+                            <strong>Ctrl+R:</strong> Reset analysis<br>
+                            <strong>Ctrl+E:</strong> Export data<br>
+                            <strong>Ctrl+/:</strong> Toggle help<br>
+                            <strong>Esc:</strong> Close help panel
+                        </p>
                     </div>
                 </div>
             </div>
         </div>
+
+        <!-- Status indicator -->
+        <div class="status-indicator" id="statusIndicator" aria-live="polite" aria-atomic="true">
+            <div class="status-content">
+                <div class="status-icon">
+                    <i class="fas fa-wifi" aria-hidden="true"></i>
+                </div>
+                <span class="status-text">Connected</span>
+            </div>
+        </div>
     </div>
 
-    <!-- Scripts -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js"></script>
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <!-- Enhanced Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js" defer></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+    
+    <!-- Screen reader announcements -->
+    <div id="sr-announcements" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+    
+    <!-- Skip link for accessibility -->
+    <a href="#typing-heading" class="skip-link">Skip to main content</a>
 </body>
 </html> 
